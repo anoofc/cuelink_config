@@ -5,7 +5,7 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>CueLink Config uses Bluetooth to find your controller and display its device information and live status.</string>
+	<string>CueLink Config uses Bluetooth to find your controller, display live status, and configure buttons, routing and Wi-Fi through an authenticated connection.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

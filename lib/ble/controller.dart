@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'protocol.dart';
+import '../config/client.dart';
 import 'transport.dart';
 
 enum SessionState { disconnected, connecting, connected }
@@ -23,6 +24,8 @@ class CueLinkController extends ChangeNotifier {
     });
   }
   final BleTransport _transport;
+  ConfigWire? get configWire =>
+      _transport is ConfigWire ? _transport as ConfigWire : null;
   RadioState radio = RadioState.unknown;
   SessionState session = SessionState.disconnected;
   bool scanning = false;

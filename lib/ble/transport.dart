@@ -1,6 +1,7 @@
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 
 import 'protocol.dart';
+import '../config/client.dart';
 
 enum RadioState {
   unknown,
@@ -34,7 +35,7 @@ abstract class BleTransport {
   Future<void> dispose();
 }
 
-class ReactiveBleTransport implements BleTransport {
+class ReactiveBleTransport implements BleTransport, ConfigWire {
   final FlutterReactiveBle _ble = FlutterReactiveBle();
   final Uuid _service = Uuid.parse(cueLinkServiceUuid);
 
@@ -69,6 +70,8 @@ class ReactiveBleTransport implements BleTransport {
           _service: [
             Uuid.parse(cueLinkInformationUuid),
             Uuid.parse(cueLinkStatusUuid),
+            Uuid.parse('c0e10004-7a6b-4c8d-9e10-5b2f034a0001'),
+            Uuid.parse('c0e10005-7a6b-4c8d-9e10-5b2f034a0001'),
           ],
         },
         connectionTimeout: const Duration(seconds: 8),
@@ -96,6 +99,16 @@ class ReactiveBleTransport implements BleTransport {
   @override
   Stream<List<int>> statusNotifications(String id) =>
       _ble.subscribeToCharacteristic(_characteristic(id, cueLinkStatusUuid));
+  @override
+  Future<void> writeConfig(String id, List<int> bytes) =>
+      _ble.writeCharacteristicWithResponse(
+        _characteristic(id, 'c0e10004-7a6b-4c8d-9e10-5b2f034a0001'),
+        value: bytes,
+      );
+  @override
+  Future<List<int>> readConfig(String id) => _ble.readCharacteristic(
+    _characteristic(id, 'c0e10005-7a6b-4c8d-9e10-5b2f034a0001'),
+  );
   @override
   Future<void> dispose() => _ble.deinitialize();
 }

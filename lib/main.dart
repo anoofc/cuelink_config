@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'ble/controller.dart';
 import 'ble/transport.dart';
+import 'config/screens.dart';
 
 void main() => runApp(const CueLinkApp());
 
@@ -125,7 +126,7 @@ class _Discovery extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         const Text(
-          'Connect over Bluetooth to view your CueLink’s identity and live network status.',
+          'Connect over Bluetooth to view live status and configure your CueLink.',
           style: TextStyle(fontSize: 16, height: 1.5, color: Color(0xffb6c2cd)),
         ),
         const SizedBox(height: 24),
@@ -231,7 +232,7 @@ class _Discovery extends StatelessWidget {
           ),
         const SizedBox(height: 24),
         const Text(
-          'Read-only device status',
+          'Live status · authenticated configuration',
           textAlign: TextAlign.center,
           style: TextStyle(color: Color(0xff8f9ba7)),
         ),
@@ -331,6 +332,20 @@ class _Overview extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
+        if (connected &&
+            c.configWire != null &&
+            ((c.information?.capabilities ?? 0) & 32) != 0)
+          FilledButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => ConfigurationScreen(controller: c),
+              ),
+            ),
+            icon: const Icon(Icons.tune),
+            label: const Text('Buttons, routing & network'),
+          ),
+        const SizedBox(height: 12),
         if (c.busy || c.session != SessionState.disconnected)
           OutlinedButton.icon(
             onPressed: () => unawaited(

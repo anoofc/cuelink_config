@@ -1,5 +1,5 @@
 name: cuelink_config
-description: "Read-only Bluetooth companion for CueLink Controller."
+description: "Authenticated Bluetooth configuration companion for CueLink Controller."
 publish_to: 'none'
 version: 0.1.0+1
 
