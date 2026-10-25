@@ -46,7 +46,7 @@ class ConfigClient extends ChangeNotifier {
   final ConfigWire wire;
   final String id;
   Configuration? configuration;
-  String state = 'Load from device to authenticate and edit.';
+  String state = 'Load settings to begin.';
   bool busy = false, uncertain = false, _disposed = false;
   int _epoch = 0;
   int? lastRequest;
@@ -210,7 +210,7 @@ class ConfigClient extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    await operation('Loading from device • enter the OLED passkey in the iOS pairing dialog', () async {
+    await operation('Loading settings…', () async {
       await wire.readConfig(id).timeout(const Duration(seconds: 60));
       var outcome = await _exchange({'schema': 1, 'op': 'query'});
       final deadline = DateTime.now().add(const Duration(seconds: 40));
@@ -225,8 +225,7 @@ class ConfigClient extends ChangeNotifier {
       configuration = Configuration.parse(response['configuration']);
       receipt = response;
       uncertain = false;
-      state =
-          'Loaded from device • revision ${configuration!.revision}. Reconcile existing drafts explicitly.';
+      state = 'Connected · Settings loaded';
     });
   }
 
@@ -275,7 +274,7 @@ class ConfigClient extends ChangeNotifier {
       }
       configuration = authoritative;
       receipt = verified;
-      state = 'Saved and verified • revision $savedRevision';
+      state = 'Saved and verified';
       uncertain = false;
       return true;
     });

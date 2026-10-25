@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'ble/controller.dart';
 import 'ble/transport.dart';
 import 'config/screens.dart';
+import 'ui.dart';
+import 'brand.dart';
 
 void main() => runApp(const CueLinkApp());
 
@@ -43,43 +45,26 @@ class _CueLinkAppState extends State<CueLinkApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final colors = ColorScheme.fromSeed(
-      seedColor: const Color(0xff53e0ec),
-      brightness: Brightness.dark,
-      primary: const Color(0xff53e0ec),
-      surface: const Color(0xff1a2128),
-    );
     return MaterialApp(
       title: 'CueLink Config',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: colors,
-        scaffoldBackgroundColor: const Color(0xff101418),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xff101418),
-          centerTitle: false,
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(48, 52),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(48, 52),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          ),
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-        ),
-      ),
+      theme: cueLinkTheme(),
       home: ListenableBuilder(
         listenable: controller,
         builder: (context, _) => Scaffold(
-          appBar: AppBar(title: const Text('CueLink Config')),
+          appBar: cueAppBar(
+            context,
+            'CueLink Config',
+            titleWidget: controller.selected == null
+                ? const CueLinkLogo()
+                : const Row(
+                    children: [
+                      CueLinkLogo(compact: true, height: 28),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Controller', maxLines: 2)),
+                    ],
+                  ),
+          ),
           body: SafeArea(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
@@ -87,7 +72,7 @@ class _CueLinkAppState extends State<CueLinkApp> with WidgetsBindingObserver {
                 key: ValueKey(
                   controller.selected == null ? 'discovery' : 'overview',
                 ),
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                padding: CueSpace.screen,
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 600),
@@ -114,20 +99,14 @@ class _Discovery extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _Eyebrow('CONTROLLER DISCOVERY'),
+        Text(
+          'Connect your controller',
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
         const SizedBox(height: 12),
         Text(
-          'Your controller.\nWithin reach.',
-          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            letterSpacing: -0.8,
-          ),
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'Connect over Bluetooth to view live status and configure your CueLink.',
-          style: TextStyle(fontSize: 16, height: 1.5, color: Color(0xffb6c2cd)),
+          'Connect to CueLink over Bluetooth.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 24),
         _Badge(
@@ -144,7 +123,7 @@ class _Discovery extends StatelessWidget {
           const SizedBox(height: 12),
           _Notice(c.message!),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -154,10 +133,11 @@ class _Discovery extends StatelessWidget {
               icon: const Icon(Icons.bluetooth_searching),
               label: Text(c.scanning ? 'Scanning…' : 'Scan controllers'),
             ),
-            OutlinedButton(
-              onPressed: c.scanning ? () => unawaited(c.stopScan()) : null,
-              child: const Text('Stop'),
-            ),
+            if (c.scanning)
+              OutlinedButton(
+                onPressed: () => unawaited(c.stopScan()),
+                child: const Text('Stop'),
+              ),
             if (c.message != null)
               TextButton(
                 onPressed: c.scanning ? null : () => unawaited(c.scan()),
@@ -166,40 +146,19 @@ class _Discovery extends StatelessWidget {
           ],
         ),
         if (c.scanning) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           const LinearProgressIndicator(minHeight: 2),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           const Text('Looking for CueLink controllers • up to 10 seconds'),
         ],
         const SizedBox(height: 24),
+        const OptionalHelp(
+          'How to connect',
+          'Hold B4 for 5 seconds to open diagnostics. Use B1/B2 to find App connection, then press B3. Your controller is discoverable for 120 seconds.',
+        ),
+        const SizedBox(height: 12),
         if (c.devices.isEmpty)
-          const _Panel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.touch_app_outlined,
-                  color: Color(0xff53e0ec),
-                  size: 30,
-                ),
-                SizedBox(height: 14),
-                Text(
-                  'Enable App connection',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Hold B4 for 5 seconds to open diagnostics. Use B1/B2 to find App connection, then press B3. Your controller is discoverable for 120 seconds.',
-                  style: TextStyle(height: 1.6, color: Color(0xffb6c2cd)),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'No controllers found yet.',
-                  style: TextStyle(color: Color(0xffb6c2cd)),
-                ),
-              ],
-            ),
-          )
+          const Text('No controllers found yet.')
         else
           ...c.devices.map(
             (device) => Padding(
@@ -220,7 +179,7 @@ class _Discovery extends StatelessWidget {
                       'BLE scan RSSI: ${device.scanRssi} dBm',
                       style: const TextStyle(color: Color(0xffb6c2cd)),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     FilledButton(
                       onPressed: () => unawaited(c.connect(device)),
                       child: const Text('Connect'),
@@ -231,11 +190,6 @@ class _Discovery extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 24),
-        const Text(
-          'Live status · authenticated configuration',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Color(0xff8f9ba7)),
-        ),
       ],
     );
   }
@@ -259,25 +213,25 @@ class _Overview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _Eyebrow('CONTROLLER OVERVIEW'),
+        const _Eyebrow('Controller overview'),
         const SizedBox(height: 12),
         Text(
           c.selected!.name,
           style: Theme.of(context).textTheme.headlineLarge
-              ?.copyWith(fontWeight: FontWeight.w700, color: Colors.white),
+              ?.copyWith(fontWeight: FontWeight.w500, color: Colors.white),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _Badge(label: label, active: connected && !stale),
         if (c.busy) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           const LinearProgressIndicator(minHeight: 2),
         ],
         if (c.message != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _Notice(c.message!),
         ],
         if (stale) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           const _Notice(
             'Last received values are shown below. Live status is unavailable or stale.',
           ),
@@ -287,7 +241,7 @@ class _Overview extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _Eyebrow('DEVICE'),
+              const _Eyebrow('Device'),
               _Datum(
                 'Device identifier',
                 c.information?.identifier ??
@@ -301,12 +255,12 @@ class _Overview extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _Panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _Eyebrow('LIVE STATUS'),
+              const _Eyebrow('Live status'),
               _Datum(
                 statusLabel('Wi-Fi state'),
                 live?.wifi.label ?? 'Unavailable',
@@ -362,7 +316,7 @@ class _Overview extends StatelessWidget {
             icon: const Icon(Icons.bluetooth_connected),
             label: const Text('Reconnect'),
           ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         TextButton(
           onPressed: () => unawaited(c.showDiscovery()),
           child: const Text('Find another controller'),
@@ -383,9 +337,9 @@ class _Eyebrow extends StatelessWidget {
     text,
     style: const TextStyle(
       color: Color(0xff53e0ec),
-      fontSize: 12,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.5,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      letterSpacing: 0,
     ),
   );
 }
@@ -396,10 +350,10 @@ class _Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(22),
+    padding: CueSpace.card,
     decoration: BoxDecoration(
       color: const Color(0xff1a2128),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(CueSpace.radius),
       border: Border.all(color: const Color(0xff2b3742)),
     ),
     child: child,
@@ -447,7 +401,7 @@ class _Datum extends StatelessWidget {
   final String label, value;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 18),
+    padding: const EdgeInsets.only(top: 12),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -458,7 +412,7 @@ class _Datum extends StatelessWidget {
         const SizedBox(height: 5),
         SelectableText(
           value,
-          style: const TextStyle(fontSize: 19, height: 1.3),
+          style: const TextStyle(fontSize: 16, height: 1.3),
         ),
       ],
     ),

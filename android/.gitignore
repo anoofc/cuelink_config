@@ -1,0 +1,3 @@
+# Flutter may generate these when the staged resource directory is present.
+/local.properties
+/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java

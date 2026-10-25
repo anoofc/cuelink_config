@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cuelink_config/main.dart';
+import 'package:cuelink_config/brand.dart';
 import 'package:cuelink_config/ble/controller.dart';
 import 'package:cuelink_config/ble/protocol.dart';
 import 'package:cuelink_config/ble/transport.dart';
@@ -19,8 +20,8 @@ void main() {
       tester.platformDispatcher.textScaleFactorTestValue = 2;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await tester.pumpWidget(CueLinkApp(controller: model));
-      expect(find.text('CueLink Config'), findsOneWidget);
-      expect(find.text('Enable App connection'), findsOneWidget);
+      expect(find.byType(CueLinkLogo), findsOneWidget);
+      expect(find.text('How to connect'), findsOneWidget);
       expect(find.text('Connect'), findsNothing);
       expect(ble.scans, 0);
       await tester.ensureVisible(find.text('Scan controllers'));

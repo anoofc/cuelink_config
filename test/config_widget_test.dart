@@ -78,7 +78,7 @@ void main() {
       expect(tester.widget<TextField>(pass).obscureText, true);
       await controller.disconnect();
       await tester.pump();
-      expect(find.text('New password · never trimmed'), findsNothing);
+      expect(find.text('New password'), findsNothing);
       expect(wire.writes, 0);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

@@ -4,12 +4,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../ble/controller.dart';
+import '../ui.dart';
 import 'client.dart';
 import 'models.dart';
 
 class ConfigurationScreen extends StatefulWidget {
-  const ConfigurationScreen({super.key, required this.controller});
+  const ConfigurationScreen({super.key, required this.controller, this.client});
   final CueLinkController controller;
+  final ConfigClient? client;
   @override
   State<ConfigurationScreen> createState() => _ConfigurationScreenState();
 }
@@ -20,10 +22,12 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
   @override
   void initState() {
     super.initState();
-    client = ConfigClient(
-      widget.controller.configWire!,
-      widget.controller.selected!.id,
-    );
+    client =
+        widget.client ??
+        ConfigClient(
+          widget.controller.configWire!,
+          widget.controller.selected!.id,
+        );
     widget.controller.addListener(linkChanged);
   }
 
@@ -39,7 +43,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
   @override
   void dispose() {
     widget.controller.removeListener(linkChanged);
-    client.dispose();
+    if (widget.client == null) client.dispose();
     super.dispose();
   }
 
@@ -49,15 +53,18 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     builder: (context, _) {
       final config = client.configuration;
       return Scaffold(
-        appBar: AppBar(title: const Text('Controller settings')),
+        appBar: cueAppBar(context, 'Controller settings'),
         body: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: CueSpace.screen,
             children: [
-              const Text(
-                'Press B3 on the controller’s App connection page to authorize this session. Enter the OLED passkey only in the iOS pairing dialog.',
-              ),
-              const SizedBox(height: 16),
+              if (config == null ||
+                  client.state.contains('Physical authorization required')) ...[
+                const Text(
+                  'Press B3 on the controller’s App connection page to authorize this session. Enter the OLED passkey only in the iOS pairing dialog.',
+                ),
+                const SizedBox(height: 12),
+              ],
               Text(
                 connected ? client.state : 'Disconnected / outcome unknown. Reconnect from the overview, then load settings.',
               ),
@@ -74,7 +81,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                 onPressed: !connected || client.busy
                     ? null
                     : () => unawaited(client.load()),
-                child: const Text('Load / query device'),
+                child: Text(config == null ? 'Load settings' : 'Refresh'),
               ),
               if (config != null) ...[
                 const SizedBox(height: 24),
@@ -82,27 +89,30 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                   'Buttons',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
+                const SizedBox(height: 12),
                 for (var b = 0; b < 4; ++b)
-                  Card(
-                    child: ListTile(
-                      isThreeLine: true,
-                      title: Text('B${b + 1} · ${config.buttons[b].label}'),
-                      subtitle: Text(
-                        '${config.buttons[b].enabled ? 'Enabled' : 'Disabled'} · ${config.buttons[b].slots.length} triggers\n${config.buttons[b].slots.map((s) => '${s.enabled ? '' : 'Off: '}${s.protocol.toUpperCase()}').join(' · ')}',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: !connected || client.busy || client.uncertain
-                          ? null
-                          : () => Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    ButtonEditor(client: client, index: b),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Card(
+                      child: ListTile(
+                        title: Text('B${b + 1} · ${config.buttons[b].label}'),
+                        subtitle: Text(
+                          '${config.buttons[b].enabled ? 'Enabled' : 'Disabled'} · ${config.buttons[b].slots.length} ${config.buttons[b].slots.length == 1 ? 'trigger' : 'triggers'}\n${config.buttons[b].slots.map((s) => '${s.protocol == 'midi' ? 'USB MIDI' : s.protocol.toUpperCase()}${s.enabled ? '' : ' (disabled)'}').join(' · ')}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: !connected || client.busy || client.uncertain
+                            ? null
+                            : () => Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      ButtonEditor(client: client, index: b),
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 OutlinedButton(
                   onPressed: !connected || client.busy || client.uncertain
                       ? null
@@ -114,6 +124,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                         ),
                   child: const Text('Routing'),
                 ),
+                const SizedBox(height: 12),
                 OutlinedButton(
                   onPressed: !connected || client.busy || client.uncertain
                       ? null
@@ -186,10 +197,10 @@ class _DraftPageState extends State<DraftPage> {
       }
     },
     child: Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: cueAppBar(context, widget.title),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+          padding: CueSpace.screen,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
@@ -210,13 +221,21 @@ Widget field(
   int? maxLines = 1,
   int? maxLength,
 }) => Padding(
-  padding: const EdgeInsets.symmetric(vertical: 8),
+  padding: EdgeInsets.zero,
   child: TextField(
     controller: c,
     onChanged: (_) => changed(),
     keyboardType: numeric ? TextInputType.number : TextInputType.text,
     maxLines: maxLines,
     maxLength: maxLength,
+    buildCounter:
+        (context, {required currentLength, required isFocused, maxLength}) =>
+            isFocused && maxLength != null
+            ? Text(
+                '$currentLength/$maxLength',
+                style: Theme.of(context).textTheme.bodySmall,
+              )
+            : null,
     decoration: InputDecoration(
       labelText: label,
       border: const OutlineInputBorder(),
@@ -251,35 +270,66 @@ class DestinationFields extends StatelessWidget {
     super.key,
     required this.values,
     required this.changed,
+    this.warnEmpty = true,
   });
   final List<DestinationDraft> values;
   final VoidCallback changed;
+  final bool warnEmpty;
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) => ControlColumn(
     children: [
       const SizedBox(height: 12),
-      const Text('Destinations · up to 8'),
-      for (var i = 0; i < values.length; ++i)
+      Text(
+        'Destinations · ${values.length}/8',
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      for (var i = 0; i < values.length; i++)
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
+            padding: CueSpace.card,
+            child: ControlColumn(
               children: [
-                Text('Destination ${i + 1}'),
-                field('IPv4', values[i].ip, changed),
-                field('Port', values[i].port, changed, numeric: true),
-                TextButton(
-                  onPressed: () {
-                    values.removeAt(i).dispose();
-                    changed();
+                Row(
+                  children: [
+                    Expanded(child: Text('Destination ${i + 1}')),
+                    IconButton(
+                      tooltip: 'Delete destination ${i + 1}',
+                      onPressed: () {
+                        values.removeAt(i).dispose();
+                        changed();
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
+                ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final ip = field('IP address', values[i].ip, changed);
+                    final port = field(
+                      'Port',
+                      values[i].port,
+                      changed,
+                      numeric: true,
+                    );
+                    if (constraints.maxWidth < 360 ||
+                        MediaQuery.textScalerOf(context).scale(16) > 24) {
+                      return ControlColumn(children: [ip, port]);
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 2, child: ip),
+                        const SizedBox(width: 12),
+                        Expanded(child: port),
+                      ],
+                    );
                   },
-                  child: const Text('Remove destination'),
                 ),
               ],
             ),
           ),
         ),
+      const SizedBox(height: 12),
       OutlinedButton(
         onPressed: values.length >= 8
             ? null
@@ -289,12 +339,80 @@ class DestinationFields extends StatelessWidget {
               },
         child: const Text('Add destination'),
       ),
-      if (values.isEmpty)
-        const Text(
-          'No destination: network triggers cannot submit until configured.',
+      if (warnEmpty && values.isEmpty)
+        Text(
+          'Add a destination to send network triggers.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
     ],
   );
+}
+
+class TransferGuard extends StatelessWidget {
+  const TransferGuard({super.key, required this.client, required this.child});
+  final ConfigClient client;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => ControlColumn(
+    children: [
+      if (client.busy) ...[
+        const LinearProgressIndicator(),
+        Text(client.state),
+        TextButton(
+          onPressed: () => unawaited(client.cancel()),
+          child: const Text('Cancel transfer'),
+        ),
+      ],
+      IgnorePointer(ignoring: client.busy, child: child),
+    ],
+  );
+}
+
+class EditorStatus extends StatelessWidget {
+  const EditorStatus({
+    super.key,
+    required this.client,
+    required this.dirty,
+    required this.revision,
+  });
+  final ConfigClient client;
+  final bool dirty;
+  final int revision;
+  @override
+  Widget build(BuildContext context) {
+    final conflict =
+        client.configuration != null &&
+        client.configuration!.revision != revision;
+    return ControlColumn(
+      children: [
+        Text(
+          client.busy || client.uncertain
+              ? client.state
+              : conflict
+              ? 'Settings changed on the controller. Discard changes to reload before saving.'
+              : dirty
+              ? 'Unsaved changes'
+              : client.state.startsWith('Saved')
+              ? 'Saved'
+              : 'Unchanged',
+          style: TextStyle(
+            color: client.uncertain || conflict
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (client.uncertain && !client.busy)
+          OutlinedButton(
+            onPressed: () => unawaited(client.load()),
+            child: const Text('Reload settings'),
+          ),
+        OptionalHelp(
+          'Technical information',
+          'Draft revision: $revision. Controller revision: ${client.configuration?.revision ?? 'unknown'}.',
+        ),
+      ],
+    );
+  }
 }
 
 class ButtonEditor extends StatefulWidget {
@@ -388,22 +506,17 @@ class _ButtonEditorState extends State<ButtonEditor> {
     dirty: dirty,
     child: AnimatedBuilder(
       animation: widget.client,
-      builder: (context, _) => IgnorePointer(
-        ignoring: widget.client.busy,
-        child: Column(
+      builder: (context, _) => TransferGuard(
+        client: widget.client,
+        child: ControlColumn(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(dirty ? 'Unsaved changes' : 'Device settings'),
-            field(
-              'Label · 1–12 printable ASCII characters',
-              label,
-              changed,
-              maxLength: 12,
+            field('Button name', label, changed, maxLength: 12),
+            const OptionalHelp(
+              'Button name help',
+              'Use 1–12 printable ASCII characters. OLED indicators use the first 3 characters and a dot for names longer than 4 characters.',
             ),
-            const Text(
-              'OLED indicators use the first 3 characters and a dot when the label exceeds 4 characters.',
-            ),
-            SwitchListTile(
+            SettingsSwitch(
               title: const Text('Button enabled'),
               value: enabled,
               onChanged: (v) {
@@ -414,15 +527,14 @@ class _ButtonEditorState extends State<ButtonEditor> {
             for (var i = 0; i < slots.length; ++i)
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
+                  padding: CueSpace.card,
+                  child: ControlColumn(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'Slot ${i + 1} · ${slots[i].protocol.toUpperCase()}',
-                      ),
-                      SwitchListTile(
-                        title: const Text('Slot enabled'),
+                      SettingsSwitch(
+                        title: Text(
+                          'Trigger ${i + 1} · ${slots[i].protocol == 'midi' ? 'USB MIDI' : slots[i].protocol.toUpperCase()}',
+                        ),
                         value: slots[i].enabled,
                         onChanged: (v) {
                           slots[i] = slots[i].withEnabled(v);
@@ -430,13 +542,15 @@ class _ButtonEditorState extends State<ButtonEditor> {
                         },
                       ),
                       Wrap(
-                        spacing: 8,
+                        spacing: 12,
+                        runSpacing: 12,
                         children: [
                           TextButton(
                             onPressed: () => edit(i),
                             child: const Text('Edit'),
                           ),
-                          TextButton(
+                          IconButton(
+                            tooltip: 'Move trigger up',
                             onPressed: i == 0
                                 ? null
                                 : () {
@@ -444,9 +558,10 @@ class _ButtonEditorState extends State<ButtonEditor> {
                                     slots.insert(i - 1, t);
                                     changed();
                                   },
-                            child: const Text('Move up'),
+                            icon: const Icon(Icons.arrow_upward),
                           ),
-                          TextButton(
+                          IconButton(
+                            tooltip: 'Move trigger down',
                             onPressed: i == slots.length - 1
                                 ? null
                                 : () {
@@ -454,14 +569,15 @@ class _ButtonEditorState extends State<ButtonEditor> {
                                     slots.insert(i + 1, t);
                                     changed();
                                   },
-                            child: const Text('Move down'),
+                            icon: const Icon(Icons.arrow_downward),
                           ),
-                          TextButton(
+                          IconButton(
+                            tooltip: 'Delete trigger',
                             onPressed: () {
                               slots.removeAt(i);
                               changed();
                             },
-                            child: const Text('Remove'),
+                            icon: const Icon(Icons.delete_outline),
                           ),
                         ],
                       ),
@@ -474,10 +590,18 @@ class _ButtonEditorState extends State<ButtonEditor> {
               child: const Text('Add trigger'),
             ),
             failure(error),
-            Text(widget.client.state),
+            EditorStatus(
+              client: widget.client,
+              dirty: dirty,
+              revision: revision,
+            ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: !dirty || widget.client.busy || widget.client.uncertain
+              onPressed:
+                  !dirty ||
+                      widget.client.busy ||
+                      widget.client.uncertain ||
+                      widget.client.configuration?.revision != revision
                   ? null
                   : save,
               child: const Text('Save button'),
@@ -494,7 +618,7 @@ class _ButtonEditorState extends State<ButtonEditor> {
                   }
                 }
               },
-              child: const Text('Discard / reload device values'),
+              child: const Text('Discard changes'),
             ),
           ],
         ),
@@ -668,10 +792,12 @@ class _TriggerEditorState extends State<TriggerEditor> {
   Widget build(BuildContext context) => DraftPage(
     title: 'Trigger settings',
     dirty: dirty,
-    child: Column(
+    child: ControlColumn(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         DropdownButtonFormField<String>(
+          isExpanded: true,
+          itemHeight: null,
           initialValue: protocol,
           decoration: const InputDecoration(labelText: 'Protocol'),
           items: [
@@ -686,7 +812,7 @@ class _TriggerEditorState extends State<TriggerEditor> {
             changed();
           },
         ),
-        SwitchListTile(
+        SettingsSwitch(
           title: const Text('Enabled'),
           value: enabled,
           onChanged: (v) {
@@ -696,37 +822,59 @@ class _TriggerEditorState extends State<TriggerEditor> {
         ),
         if (protocol == 'osc') ...[
           field('OSC address', path, changed),
-          const Text('Typed arguments · up to 8'),
+          const SizedBox(height: 24),
+          Text(
+            'Arguments · ${args.length}/8',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           for (var i = 0; i < args.length; ++i)
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
+                padding: CueSpace.card,
+                child: ControlColumn(
                   children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: args[i].type,
-                      items: [
-                        for (final t in ['i', 'f', 's'])
-                          DropdownMenuItem(
-                            value: t,
-                            child: Text(
-                              {'i': 'int32', 'f': 'float32', 's': 'string'}[t]!,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            itemHeight: null,
+                            initialValue: args[i].type,
+                            decoration: const InputDecoration(
+                              labelText: 'Type',
                             ),
+                            items: [
+                              for (final t in ['i', 'f', 's'])
+                                DropdownMenuItem(
+                                  value: t,
+                                  child: Text(
+                                    {
+                                      'i': 'int32',
+                                      'f': 'float32',
+                                      's': 'string',
+                                    }[t]!,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) {
+                              args[i].type = v!;
+                              changed();
+                            },
                           ),
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          tooltip: 'Delete argument ${i + 1}',
+                          onPressed: () {
+                            args.removeAt(i).value.dispose();
+                            changed();
+                          },
+                          icon: const Icon(Icons.delete_outline),
+                        ),
                       ],
-                      onChanged: (v) {
-                        args[i].type = v!;
-                        changed();
-                      },
                     ),
-                    field('Argument ${i + 1}', args[i].value, changed),
-                    TextButton(
-                      onPressed: () {
-                        args.removeAt(i).value.dispose();
-                        changed();
-                      },
-                      child: const Text('Remove argument'),
-                    ),
+                    field('Value', args[i].value, changed),
                   ],
                 ),
               ),
@@ -743,6 +891,8 @@ class _TriggerEditorState extends State<TriggerEditor> {
         ],
         if (protocol == 'udp') ...[
           DropdownButtonFormField<String>(
+            isExpanded: true,
+            itemHeight: null,
             key: ValueKey(format),
             initialValue: format,
             decoration: const InputDecoration(labelText: 'Representation'),
@@ -763,6 +913,8 @@ class _TriggerEditorState extends State<TriggerEditor> {
           ),
           if (format == 'text')
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               key: ValueKey('ending$ending'),
               initialValue: ending,
               decoration: const InputDecoration(
@@ -781,6 +933,8 @@ class _TriggerEditorState extends State<TriggerEditor> {
         ],
         if (protocol == 'midi') ...[
           DropdownButtonFormField<String>(
+            isExpanded: true,
+            itemHeight: null,
             initialValue: type,
             decoration: const InputDecoration(labelText: 'MIDI message'),
             items: [
@@ -828,15 +982,37 @@ class _TriggerEditorState extends State<TriggerEditor> {
             ),
           const Text('USB MIDI ignores network/master routing.'),
         ] else ...[
+          const SizedBox(height: 24),
           Text(
-            widget.routing.master
-                ? 'Effective routing: master list (${widget.routing.destinations.map((d) => '${d.ip}:${d.port}').join(', ')}). Individual destinations below are retained.'
-                : 'Effective routing: individual destinations below.',
+            widget.routing.master ? 'Routing: Master' : 'Routing: Individual',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          DestinationFields(values: dest, changed: changed),
+          const OptionalHelp(
+            'Routing help',
+            'Master destinations replace individual destinations for OSC and UDP. Individual destinations are retained. USB MIDI is unaffected.',
+          ),
+          DestinationFields(
+            values: dest,
+            changed: changed,
+            warnEmpty: !widget.routing.master && enabled,
+          ),
+          if (enabled &&
+              widget.routing.master &&
+              widget.routing.destinations.isEmpty)
+            const Text(
+              'Master destinations are empty. Configure Routing before sending.',
+            ),
         ],
-        const SizedBox(height: 16),
-        SelectableText(preview()),
+        const SizedBox(height: 24),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: const Text('Command preview'),
+          children: [SelectableText(preview())],
+        ),
+        Text(
+          'Done updates this button’s draft. Save the button to send changes to the controller.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         failure(error),
         FilledButton(
           onPressed: () {
@@ -848,7 +1024,7 @@ class _TriggerEditorState extends State<TriggerEditor> {
               setState(() => error = errorMessage(e));
             }
           },
-          child: const Text('Use trigger in draft'),
+          child: const Text('Done'),
         ),
         TextButton(
           onPressed: () async {
@@ -861,7 +1037,7 @@ class _TriggerEditorState extends State<TriggerEditor> {
               }
             }
           },
-          child: const Text('Discard trigger changes'),
+          child: const Text('Cancel'),
         ),
       ],
     ),
@@ -910,27 +1086,41 @@ class _RoutingEditorState extends State<RoutingEditor> {
     dirty: dirty,
     child: AnimatedBuilder(
       animation: widget.client,
-      builder: (context, _) => IgnorePointer(
-        ignoring: widget.client.busy,
-        child: Column(
+      builder: (context, _) => TransferGuard(
+        client: widget.client,
+        child: ControlColumn(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SwitchListTile(
-              title: const Text('Master network destinations'),
+            SettingsSwitch(
+              title: const Text('Use master destinations'),
               value: master,
               onChanged: (v) {
                 master = v;
                 changed();
               },
             ),
-            const Text(
-              'ON replaces effective routing for every OSC/UDP slot. Individual lists stay intact. USB MIDI is unaffected.',
+            const Text('Use these destinations for all OSC and UDP triggers.'),
+            const OptionalHelp(
+              'Routing details',
+              'Individual destinations are preserved when master routing is enabled. USB MIDI is unaffected.',
             ),
-            DestinationFields(values: dest, changed: changed),
+            DestinationFields(
+              values: dest,
+              changed: changed,
+              warnEmpty: master,
+            ),
             failure(error),
-            Text(widget.client.state),
+            EditorStatus(
+              client: widget.client,
+              dirty: dirty,
+              revision: revision,
+            ),
             FilledButton(
-              onPressed: !dirty || widget.client.busy || widget.client.uncertain
+              onPressed:
+                  !dirty ||
+                      widget.client.busy ||
+                      widget.client.uncertain ||
+                      widget.client.configuration?.revision != revision
                   ? null
                   : () async {
                       try {
@@ -969,7 +1159,7 @@ class _RoutingEditorState extends State<RoutingEditor> {
                   }
                 }
               },
-              child: const Text('Discard / reload device values'),
+              child: const Text('Discard changes'),
             ),
           ],
         ),
@@ -1093,13 +1283,18 @@ class _NetworkEditorState extends State<NetworkEditor> {
     dirty: dirty,
     child: AnimatedBuilder(
       animation: widget.client,
-      builder: (context, _) => IgnorePointer(
-        ignoring: widget.client.busy,
-        child: Column(
+      builder: (context, _) => TransferGuard(
+        client: widget.client,
+        child: ControlColumn(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '${widget.controller.fresh ? 'Current Wi-Fi' : 'Last Wi-Fi (stale)'}: ${widget.controller.status?.wifi.label ?? 'Unavailable'} · ${widget.controller.status?.ipv4 ?? 'No current IP'}',
+            Card(
+              child: Padding(
+                padding: CueSpace.card,
+                child: Text(
+                  '${widget.controller.fresh ? 'Current Wi-Fi' : 'Last Wi-Fi (stale)'}: ${widget.controller.status?.wifi.label ?? 'Unavailable'} · ${widget.controller.fresh ? widget.controller.status?.ipv4 ?? 'No IP' : 'No current IP'}',
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
@@ -1111,7 +1306,7 @@ class _NetworkEditorState extends State<NetworkEditor> {
                         setState(() => networks = result);
                       }
                     },
-              child: const Text('Scan Wi-Fi using controller'),
+              child: const Text('Scan networks'),
             ),
             for (final n in networks)
               ListTile(
@@ -1124,21 +1319,16 @@ class _NetworkEditorState extends State<NetworkEditor> {
                   changed();
                 },
               ),
-            field(
-              'SSID · manual / hidden network',
-              ssid,
-              changed,
-              maxLength: 32,
-            ),
+            field('Network name (SSID)', ssid, changed, maxLength: 32),
             Text(
               'Stored password: ${widget.client.configuration!.network.passwordConfigured ? 'Configured' : 'Not configured'}',
             ),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               key: ValueKey(mode),
               initialValue: mode,
-              decoration: const InputDecoration(
-                labelText: 'Credential operation',
-              ),
+              decoration: const InputDecoration(labelText: 'Password'),
               items: const [
                 DropdownMenuItem(
                   value: 'keep',
@@ -1169,7 +1359,7 @@ class _NetworkEditorState extends State<NetworkEditor> {
                   enableSuggestions: false,
                   onChanged: (_) => changed(),
                   decoration: InputDecoration(
-                    labelText: 'New password · never trimmed',
+                    labelText: 'New password',
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       onPressed: () => setState(() => reveal = !reveal),
@@ -1180,7 +1370,7 @@ class _NetworkEditorState extends State<NetworkEditor> {
                   ),
                 ),
               ),
-            SwitchListTile(
+            SettingsSwitch(
               title: const Text('DHCP'),
               value: dhcp,
               onChanged: (v) {
@@ -1202,12 +1392,24 @@ class _NetworkEditorState extends State<NetworkEditor> {
                   changed,
                 ),
             const Text(
-              'Apply tests association and IP acquisition for up to 30 seconds. Failed settings roll back. BLE and USB MIDI remain available. Internet access is not required.',
+              'Connection is tested before saving. Failed changes are rolled back.',
+            ),
+            const OptionalHelp(
+              'Connection details',
+              'Association and IP acquisition are tested for up to 30 seconds. BLE and USB MIDI remain available. Internet access is not required.',
             ),
             failure(error),
-            Text(widget.client.state),
+            EditorStatus(
+              client: widget.client,
+              dirty: dirty,
+              revision: revision,
+            ),
             FilledButton(
-              onPressed: !dirty || widget.client.busy || widget.client.uncertain
+              onPressed:
+                  !dirty ||
+                      widget.client.busy ||
+                      widget.client.uncertain ||
+                      widget.client.configuration?.revision != revision
                   ? null
                   : apply,
               child: const Text('Apply network'),
@@ -1218,7 +1420,7 @@ class _NetworkEditorState extends State<NetworkEditor> {
                   if (mounted) setState(reset);
                 }
               },
-              child: const Text('Discard / reload device values'),
+              child: const Text('Discard changes'),
             ),
           ],
         ),
