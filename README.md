@@ -1,10 +1,17 @@
-# CueLink Config — Milestone 4A
+# CueLink Config
 
-A read-only iOS Bluetooth companion for the general-purpose CueLink Controller.
-Discover physically enabled controllers, connect, and read real device identity,
-firmware, Wi-Fi state/IP/RSSI, uptime, and run/diagnostic mode. There are no
-configuration writes, credential transfer, command triggers, fake production
-controllers, or saved pairing.
+The Flutter Bluetooth companion for CueLink Controller: discovery, live identity/
+Wi-Fi status, and physically authorized configuration of buttons, routing and
+network settings. Four buttons support up to four OSC, UDP or USB MIDI triggers
+per button. Credentials remain protected and are not logged or cached on disk.
+
+Configuration transfer uses capability-gated MTU-aware frames, protected response
+notifications and scoped save verification on updated firmware. Older firmware
+uses the legacy default-MTU/read-based path. See [performance measurements,
+protocol details, rebuild/install commands and physical acceptance steps](../../firmware/docs/configuration_performance.md).
+The ≤5-second target has passed latency simulation for normal negotiated MTUs;
+physical iPhone/controller acceptance is still pending. MTU-23 near-limit transfers
+are safe but slower, and Wi-Fi credential testing may take up to 30 seconds.
 
 ## Run and test
 
@@ -42,6 +49,8 @@ scans and disconnects; returning requires a manual **Reconnect**.
 - `lib/ble/controller.dart`: scan/session state, deadlines, subscription ownership,
   cancellation, stale data, and manual reconnect.
 - `lib/main.dart`: dark discovery/overview UI and app lifecycle policy.
+- `lib/config/client.dart`: CRC-framed transfers, serialized writes, notifications/recovery, revision and authoritative readback verification, and timing diagnostics.
+- `lib/config/screens.dart`: existing button/trigger/routing/network editors and explicit draft handling.
 - `test/`: shared firmware golden-vector decoding, malformed/unsupported data,
   fake-transport lifecycle tests, and accessible UI checks. Fakes are test-only.
 
@@ -52,7 +61,8 @@ background Bluetooth permissions are requested.
 
 Full UUIDs, byte-level field definitions, dependency licenses, firmware lifecycle,
 and physical test checklist are in [the BLE protocol document](../../firmware/docs/ble_protocol.md).
-Both characteristics are 12 bytes and work within the default 20-byte ATT payload.
+The public information/status characteristics remain 12 bytes. Protected configuration
+uses the separately versioned transport, with 20–244-byte frames depending on capability and negotiated capacity.
 Protocol fixtures are shared from `../../firmware/docs/ble_protocol_vectors.json`,
 so run tests with the firmware/app directories in their existing repository layout.
 

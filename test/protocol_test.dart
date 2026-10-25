@@ -19,9 +19,9 @@ void main() {
       final info = DeviceInformation.decode(vectors['information']!);
       expect(info.identifier, '021122334455');
       expect(info.firmware, '0.5.0');
-      expect(info.capabilities, 127);
+      expect(info.capabilities, 255);
       final futureCapabilities = [...vectors['information']!]..[11] = 128;
-      expect(DeviceInformation.decode(futureCapabilities).capabilities, 0x807f);
+      expect(DeviceInformation.decode(futureCapabilities).capabilities, 0x80ff);
     },
   );
   test('firmware golden status: network-order IP, signed RSSI, little-endian uptime', () {
