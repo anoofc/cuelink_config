@@ -40,6 +40,24 @@ Future<void> snapshot(WidgetTester tester, String name) async {
   });
 }
 
+class ReviewBle extends FakeBle implements ConfigWire {
+  @override
+  Future<void> writeConfig(String id, List<int> bytes) async {}
+  @override
+  Future<List<int>> readConfig(String id) async => [];
+}
+
+// Controlled screen-review fixture: initial opening now loads automatically.
+class ReviewClient extends ConfigClient {
+  ReviewClient(super.wire, super.id);
+  @override
+  Future<void> load() async {
+    uncertain = true;
+    state = 'Failed: Physical authorization required';
+    emit();
+  }
+}
+
 void main() {
   setUpAll(() async {
     final sdk = Platform.environment['FLUTTER_ROOT'];
@@ -89,7 +107,7 @@ void main() {
         tester.platformDispatcher.clearTextScaleFactorTestValue();
       });
       final wire = NoWrites();
-      final client = ConfigClient(wire, 'ios-test-id');
+      final client = ReviewClient(wire, 'ios-test-id');
       final fixture = jsonDecode(
         File('../../firmware/docs/configuration_vector.json')
             .readAsStringSync(),
@@ -97,7 +115,7 @@ void main() {
       client.configuration = Configuration.parse(fixture);
       final first = client.configuration!.buttons[0];
       first.slots.add(first.slots.first);
-      final controller = CueLinkController(FakeBle());
+      final controller = CueLinkController(ReviewBle());
       controller.selected = testDevice;
       controller.session = SessionState.connected;
       controller.status = LiveStatus.decode(testStatus);
@@ -155,6 +173,7 @@ void main() {
         ConfigurationScreen(controller: controller, client: client),
       );
       client.configuration = loaded;
+      client.uncertain = false;
       client.state = 'Connected · Settings loaded';
       await show(
         'settings',
@@ -293,7 +312,7 @@ void main() {
         await tester.binding.setSurfaceSize(null);
         tester.platformDispatcher.clearTextScaleFactorTestValue();
       });
-      final model = CueLinkController(FakeBle());
+      final model = CueLinkController(ReviewBle());
       await tester.pumpWidget(
         RepaintBoundary(
           key: boundaryKey,
@@ -308,6 +327,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Hold B4 for 5 seconds'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      model.selected = testDevice;
+      model.session = SessionState.connected;
+      model.information = DeviceInformation.decode([...testInfo]..[10] = 0x7f);
+      model.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(find.text('CueLink Config'), findsOneWidget);
+      final image = tester.widget<Image>(find.byType(Image).first);
+      await tester.runAsync(
+        () => precacheImage(
+          image.image,
+          tester.element(find.byType(Image).first),
+        ),
+      );
+      await tester.pump();
+      await snapshot(
+        tester,
+        '${profile.$1.toInt()}-${profile.$3}-connected-home',
+      );
+      await reveal(tester, find.text('Configuration'));
+      await snapshot(
+        tester,
+        '${profile.$1.toInt()}-${profile.$3}-configuration-entry',
+      );
       await tester.pumpWidget(const SizedBox.shrink());
       model.dispose();
     });

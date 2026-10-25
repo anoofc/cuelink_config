@@ -18,7 +18,25 @@ class ConfigurationScreen extends StatefulWidget {
 
 class _ConfigurationScreenState extends State<ConfigurationScreen> {
   late final ConfigClient client;
-  bool connected = true;
+  bool connected = false;
+  bool initialLoadPending = false;
+  bool loadingRequest = false;
+  bool get matchesDevice =>
+      widget.controller.session == SessionState.connected &&
+      widget.controller.selected?.id == client.id;
+  bool get canEdit =>
+      matchesDevice && !client.busy && !client.uncertain && !loadingRequest;
+
+  Future<void> loadSettings() async {
+    if (!mounted || !matchesDevice || loadingRequest || client.busy) return;
+    setState(() => loadingRequest = true);
+    try {
+      await client.load();
+    } finally {
+      if (mounted) setState(() => loadingRequest = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -28,7 +46,17 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
           widget.controller.configWire!,
           widget.controller.selected!.id,
         );
+    connected = matchesDevice;
+    initialLoadPending = connected && client.configuration == null;
     widget.controller.addListener(linkChanged);
+    if (initialLoadPending) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => initialLoadPending = false);
+        // Initial route entry only: never refresh on rebuild or a subpage pop.
+        if (client.configuration == null) unawaited(loadSettings());
+      });
+    }
   }
 
   void linkChanged() {
@@ -51,38 +79,58 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: client,
     builder: (context, _) {
-      final config = client.configuration;
+      final config = matchesDevice ? client.configuration : null;
+      final loading = initialLoadPending || loadingRequest || client.busy;
+      final failed =
+          matchesDevice && !loading && (config == null || client.uncertain);
       return Scaffold(
-        appBar: cueAppBar(context, 'Controller settings'),
+        appBar: cueAppBar(context, 'Configuration'),
         body: SafeArea(
           child: ListView(
             padding: CueSpace.screen,
             children: [
-              if (config == null ||
-                  client.state.contains('Physical authorization required')) ...[
+              if (!matchesDevice)
                 const Text(
-                  'Press B3 on the controller’s App connection page to authorize this session. Enter the OLED passkey only in the iOS pairing dialog.',
-                ),
-                const SizedBox(height: 12),
-              ],
-              Text(
-                connected ? client.state : 'Disconnected / outcome unknown. Reconnect from the overview, then load settings.',
-              ),
-              if (client.busy) ...[
+                  'Connection changed. Return home and reconnect to configure your controller.',
+                )
+              else if (loading) ...[
+                const Text('Loading settings…'),
                 const SizedBox(height: 12),
                 const LinearProgressIndicator(),
                 TextButton(
-                  onPressed: () => unawaited(client.cancel()),
+                  onPressed: client.busy
+                      ? () => unawaited(client.cancel())
+                      : null,
                   child: const Text('Cancel transfer'),
                 ),
+              ] else if (failed) ...[
+                Text(
+                  'Couldn’t load settings. Try again.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                if (client.state.contains(
+                  'Physical authorization required',
+                )) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Press B3 on the controller’s App connection page to authorize. Enter the OLED passkey in the system pairing dialog.',
+                  ),
+                ],
+                OptionalHelp('Error details', client.state),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: loadSettings,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              ] else ...[
+                Text(client.state),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: loadSettings,
+                  child: const Text('Refresh'),
+                ),
               ],
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: !connected || client.busy
-                    ? null
-                    : () => unawaited(client.load()),
-                child: Text(config == null ? 'Load settings' : 'Refresh'),
-              ),
               if (config != null) ...[
                 const SizedBox(height: 24),
                 Text(
@@ -100,7 +148,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                           '${config.buttons[b].enabled ? 'Enabled' : 'Disabled'} · ${config.buttons[b].slots.length} ${config.buttons[b].slots.length == 1 ? 'trigger' : 'triggers'}\n${config.buttons[b].slots.map((s) => '${s.protocol == 'midi' ? 'USB MIDI' : s.protocol.toUpperCase()}${s.enabled ? '' : ' (disabled)'}').join(' · ')}',
                         ),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: !connected || client.busy || client.uncertain
+                        onTap: !canEdit
                             ? null
                             : () => Navigator.push(
                                 context,
@@ -114,7 +162,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                   ),
                 const SizedBox(height: 24),
                 OutlinedButton(
-                  onPressed: !connected || client.busy || client.uncertain
+                  onPressed: !canEdit
                       ? null
                       : () => Navigator.push(
                           context,
@@ -126,7 +174,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton(
-                  onPressed: !connected || client.busy || client.uncertain
+                  onPressed: !canEdit
                       ? null
                       : () => Navigator.push(
                           context,

@@ -61,7 +61,7 @@ class _CueLinkAppState extends State<CueLinkApp> with WidgetsBindingObserver {
                     children: [
                       CueLinkLogo(compact: true, height: 28),
                       SizedBox(width: 12),
-                      Expanded(child: Text('Controller', maxLines: 2)),
+                      Expanded(child: Text('CueLink Config', maxLines: 2)),
                     ],
                   ),
           ),
@@ -195,12 +195,36 @@ class _Discovery extends StatelessWidget {
   }
 }
 
-class _Overview extends StatelessWidget {
+class _Overview extends StatefulWidget {
   const _Overview({required this.controller});
   final CueLinkController controller;
   @override
+  State<_Overview> createState() => _OverviewState();
+}
+
+class _OverviewState extends State<_Overview> {
+  bool openingConfiguration = false;
+  Future<void> openConfiguration() async {
+    final c = widget.controller;
+    if (openingConfiguration ||
+        c.session != SessionState.connected ||
+        c.configWire == null) {
+      return;
+    }
+    setState(() => openingConfiguration = true);
+    try {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(builder: (_) => ConfigurationScreen(controller: c)),
+      );
+    } finally {
+      if (mounted) setState(() => openingConfiguration = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final c = controller;
+    final c = widget.controller;
     final live = c.status;
     final stale = live != null && !c.fresh;
     final connected = c.session == SessionState.connected;
@@ -290,14 +314,9 @@ class _Overview extends StatelessWidget {
             c.configWire != null &&
             ((c.information?.capabilities ?? 0) & 32) != 0)
           FilledButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => ConfigurationScreen(controller: c),
-              ),
-            ),
+            onPressed: openingConfiguration ? null : openConfiguration,
             icon: const Icon(Icons.tune),
-            label: const Text('Buttons, routing & network'),
+            label: const Text('Configuration'),
           ),
         const SizedBox(height: 12),
         if (c.busy || c.session != SessionState.disconnected)
