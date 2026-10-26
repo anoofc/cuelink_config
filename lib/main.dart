@@ -7,6 +7,7 @@ import 'ble/transport.dart';
 import 'config/screens.dart';
 import 'ui.dart';
 import 'brand.dart';
+import 'about.dart';
 
 void main() => runApp(const CueLinkApp());
 
@@ -19,6 +20,7 @@ class CueLinkApp extends StatefulWidget {
 
 class _CueLinkAppState extends State<CueLinkApp> with WidgetsBindingObserver {
   late final CueLinkController controller;
+  bool _aboutOpen = false;
   @override
   void initState() {
     super.initState();
@@ -55,6 +57,27 @@ class _CueLinkAppState extends State<CueLinkApp> with WidgetsBindingObserver {
           appBar: cueAppBar(
             context,
             'CueLink Config',
+            actions: [
+              IconButton(
+                tooltip: 'About',
+                icon: const Icon(Icons.info_outline),
+                onPressed: _aboutOpen
+                    ? null
+                    : () async {
+                        setState(() => _aboutOpen = true);
+                        try {
+                          await Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  AboutScreen(controller: controller),
+                            ),
+                          );
+                        } finally {
+                          if (mounted) setState(() => _aboutOpen = false);
+                        }
+                      },
+              ),
+            ],
             titleWidget: controller.selected == null
                 ? const CueLinkLogo()
                 : const Row(

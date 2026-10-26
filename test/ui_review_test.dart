@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:cuelink_config/about.dart';
+import 'package:cuelink_config/brand.dart';
 import 'package:cuelink_config/ble/controller.dart';
 import 'package:cuelink_config/ble/protocol.dart';
 import 'package:cuelink_config/config/client.dart';
@@ -117,6 +120,7 @@ void main() {
       first.slots.add(first.slots.first);
       final controller = CueLinkController(ReviewBle());
       controller.selected = testDevice;
+      controller.information = DeviceInformation.decode(testInfo);
       controller.session = SessionState.connected;
       controller.status = LiveStatus.decode(testStatus);
       controller.receivedAt = DateTime.now();
@@ -134,6 +138,16 @@ void main() {
           ),
         );
         await tester.pump(const Duration(milliseconds: 350));
+        if (page is AboutScreen) {
+          // Decode the PNG outside the widget test's fake clock before capture.
+          await tester.runAsync(
+            () => precacheImage(
+              const AssetImage(CueLinkBrand.logoOnDark),
+              tester.element(find.byType(AboutScreen)),
+            ),
+          );
+          await tester.pump();
+        }
         await snapshot(tester, '$prefix-$name-top');
         if (name == 'transfer') {
           expect(find.text('Cancel transfer'), findsOneWidget);
@@ -167,6 +181,14 @@ void main() {
       }
 
       final loaded = client.configuration;
+      PackageInfo.setMockInitialValues(
+        appName: 'CueLink Config',
+        packageName: 'com.example.cuelinkConfig',
+        version: '0.1.0',
+        buildNumber: '1',
+        buildSignature: '',
+      );
+      await show('about', AboutScreen(controller: controller));
       client.configuration = null;
       await show(
         'authorization',

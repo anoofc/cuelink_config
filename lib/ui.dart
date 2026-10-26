@@ -117,14 +117,19 @@ ThemeData cueLinkTheme() {
   );
 }
 
-AppBar cueAppBar(BuildContext context, String title, {Widget? titleWidget}) =>
-    AppBar(
-      toolbarHeight: math.max(
-        56,
-        MediaQuery.textScalerOf(context).scale(22) * 2 + 8,
-      ),
-      title: titleWidget ?? Text(title, maxLines: 2),
-    );
+AppBar cueAppBar(
+  BuildContext context,
+  String title, {
+  Widget? titleWidget,
+  List<Widget>? actions,
+}) => AppBar(
+  toolbarHeight: math.max(
+    56,
+    MediaQuery.textScalerOf(context).scale(22) * 2 + 8,
+  ),
+  title: titleWidget ?? Text(title, maxLines: 2),
+  actions: actions,
+);
 
 /// Stack the label above its switch when larger text needs the full width.
 class SettingsSwitch extends StatelessWidget {
